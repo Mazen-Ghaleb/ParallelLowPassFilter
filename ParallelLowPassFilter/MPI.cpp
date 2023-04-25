@@ -88,8 +88,15 @@ int main(int argc, char** argv) {
     int kernal_size = 3; // default value
 
     if (world_rank == collector) {
-        cout << "Enter the kernel size: ";
-        cin >> kernal_size;
+
+        do {
+            cout << "Enter the kernel size: ";
+            cin >> kernal_size;
+
+            if (kernal_size % 2 == 0 || kernal_size < 0) {
+                cout << "The kernel size must be a positive odd number" << endl;
+            }
+        } while (kernal_size % 2 == 0 || kernal_size < 0);
     }
     // Broadcast the kernel size to all processes
     MPI_Bcast(&kernal_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -104,7 +111,7 @@ int main(int argc, char** argv) {
 
     auto start_time = chrono::high_resolution_clock::now();
 
-    Mat filtered_image = MPILowPassFilter(image, kernal_size, world_size, world_rank, collector);
+    Mat outputImage = MPILowPassFilter(image, kernal_size, world_size, world_rank, collector);
     auto end_time = chrono::high_resolution_clock::now();
     auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
 
@@ -112,7 +119,9 @@ int main(int argc, char** argv) {
         printf("Elapsed time: %lld milliseconds", elapsed_time.count());
         fflush(stdout);
         imshow("Original image", image);
-        imshow("New image", filtered_image);
+        imshow("New image", outputImage);
+        imwrite("mpiImage.png", outputImage);
+
         waitKey(0);
     }
 

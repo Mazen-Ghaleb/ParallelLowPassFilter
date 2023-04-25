@@ -13,9 +13,6 @@ using namespace std;
 
 Mat seqLowPassFilter(const Mat& inputImage, int kernelSize)
 {
-    // Define the filter kernel
-    //Mat kernel = Mat::ones(kernelSize, kernelSize, CV_32F) / (float)(kernelSize * kernelSize);
-
     float filter_value = (1 / (float)(kernelSize * kernelSize));
 
     // Perform zero padding on the input image
@@ -33,8 +30,6 @@ Mat seqLowPassFilter(const Mat& inputImage, int kernelSize)
             for (int k = -paddingSize; k <= paddingSize; k++) {
                 for (int l = -paddingSize; l <= paddingSize; l++) {
                     float pixelValue = paddedImage.at<uchar>(i + k, j + l);
-                    /*float kernelValue = kernel.at<float>(k + paddingSize, l + paddingSize);
-                    sum += pixelValue * kernelValue;*/
                     sum += pixelValue * filter_value;
                 }
             }
@@ -45,13 +40,30 @@ Mat seqLowPassFilter(const Mat& inputImage, int kernelSize)
     return outputImage;
 }
 
-int main3(int argc, char** argv) {
+void compareImage(String image1, String image2, String windowName) {
+    Mat a;
+    Mat b = imread(image1, IMREAD_COLOR);
+    Mat c = imread(image2, IMREAD_COLOR);
+
+    absdiff(b, c, a);
+    imshow(windowName, a);
+}
+
+
+int main(int argc, char** argv) {
     // Set OPENCV LOG level to ERROR
     utils::logging::setLogLevel(utils::logging::LogLevel::LOG_LEVEL_ERROR);
 
     int kernal_size;
-    cout << "Enter the kernel size: ";
-    cin >> kernal_size;
+
+    do {
+        cout << "Enter the kernel size: ";
+        cin >> kernal_size;
+
+        if (kernal_size % 2 == 0 || kernal_size < 0) {
+            cout << "The kernel size must be a positive odd number" << endl;
+        }
+    } while (kernal_size % 2 == 0 || kernal_size < 0);
 
     auto start_time = chrono::high_resolution_clock::now();
 
@@ -62,8 +74,13 @@ int main3(int argc, char** argv) {
         return 1;
     }
 
+    Mat outputImage = seqLowPassFilter(image, kernal_size);
     imshow("Original image", image);
-    imshow("New image", seqLowPassFilter(image, kernal_size));
+    imshow("New image", outputImage);
+    imwrite("seqImage.png", outputImage);
+
+    compareImage("seqImage.png", "openMPImage.png", "Seq vs OpenMp");
+    compareImage("seqImage.png", "mpiImage.png", "Seq vs MPI");
 
     auto end_time = chrono::high_resolution_clock::now();
     auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
