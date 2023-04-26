@@ -12,9 +12,7 @@ using namespace cv;
 using namespace std;
 
 Mat MPILowPassFilter(const Mat& inputImage, int kernelSize, int world_size, int world_rank, int collector) {
-
     // Define the filter kernel
-   //Mat kernel = Mat::ones(kernelSize, kernelSize, CV_32F) / (float)(kernelSize * kernelSize);
     float filter_value = (1 / (float)(kernelSize * kernelSize));
 
     // Perform zero padding on the input image
@@ -34,22 +32,52 @@ Mat MPILowPassFilter(const Mat& inputImage, int kernelSize, int world_size, int 
     // Scatter the input image to all processes
     MPI_Scatter(paddedImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, localImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
 
+    int prevRank = world_rank - 1;
+    int nextRank = world_rank + 1;
+
     // Perform convolution on the local image block using the filter kernel
-    for (int i = paddingSize; i < localHeight - paddingSize; i++) {
+    Mat aboveRows = Mat::zeros(paddingSize, localWidth, CV_8UC1);
+    Mat belowRows = Mat::zeros(paddingSize, localWidth, CV_8UC1);
+
+    if (world_size > 1) {
+        if (prevRank >= 0) {
+            MPI_Request request;
+            MPI_Isend(localImage.rowRange(0, paddingSize - 1).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, prevRank, 0, MPI_COMM_WORLD, &request);
+
+            MPI_Recv(aboveRows.data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, prevRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+
+        if (nextRank <= world_size - 1) {
+            MPI_Request request2;
+            MPI_Isend(localImage.rowRange(localHeight - paddingSize, localHeight - 1).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, &request2);
+
+            MPI_Recv(belowRows.data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+
+    for (int i = 0; i < localHeight; i++) {
         for (int j = paddingSize; j < localWidth - paddingSize; j++) {
             float sum = 0.0;
             for (int k = -paddingSize; k <= paddingSize; k++) {
                 for (int l = -paddingSize; l <= paddingSize; l++) {
-                    float pixelValue = localImage.at<uchar>(i + k, j + l);
-                    /*float kernelValue = kernel.at<float>(k + paddingSize, l + paddingSize);
-                    sum += pixelValue * kernelValue;*/
-                    sum += pixelValue * filter_value;
-
+                    if ((i + k >= 0) && (i + k < localHeight) && (j + l >= 0) && (j + l < localWidth)) {
+                        float pixelValue = localImage.at<uchar>(i + k, j + l);
+                        sum += pixelValue * filter_value;
+                    }
+                    else if (i + k < 0) {
+                        int index = ((i + k) + paddingSize) % paddingSize;
+                        sum += aboveRows.at<uchar>(index, j + l) * filter_value; // First row - access above block
+                    }
+                    else if (i + k >= localHeight) {
+                        int index = ((i + k - localHeight) + paddingSize) % paddingSize;
+                        sum += belowRows.at<uchar>(index, j + l) * filter_value;// Last row - access below block
+                    }
                 }
             }
             localOutputImage.at<uchar>(i, j) = sum;
         }
     }
+
 
     // Gather the filtered blocks from all processes to the root process
     Mat outputImage;
