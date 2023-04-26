@@ -1,17 +1,6 @@
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <opencv2/opencv.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgcodecs/imgcodecs.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/core/utils/logger.hpp>
-#include <mpi.h>
+#include "LPF_MPI.h"
 
-using namespace cv;
-using namespace std;
-
-Mat MPILowPassFilter(const Mat& inputImage, int kernelSize, int world_size, int world_rank, int collector) {
+Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int world_size, const int world_rank, const int collector) {
     // Define the filter kernel
     float filter_value = (1 / (float)(kernelSize * kernelSize));
 
@@ -49,7 +38,7 @@ Mat MPILowPassFilter(const Mat& inputImage, int kernelSize, int world_size, int 
 
         if (nextRank <= world_size - 1) {
             MPI_Request request2;
-            MPI_Isend(localImage.rowRange(localHeight - paddingSize, localHeight - 1).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, &request2);
+            MPI_Isend(localImage.rowRange(localHeight - paddingSize - 1, localHeight - 1).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, &request2);
 
             MPI_Recv(belowRows.data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
@@ -78,7 +67,6 @@ Mat MPILowPassFilter(const Mat& inputImage, int kernelSize, int world_size, int 
         }
     }
 
-
     // Gather the filtered blocks from all processes to the root process
     Mat outputImage;
     if (world_rank == collector) {
@@ -96,64 +84,30 @@ Mat MPILowPassFilter(const Mat& inputImage, int kernelSize, int world_size, int 
     }
 }
 
-int main(int argc, char** argv) {
-    // Initialize the MPI environment
-    MPI_Init(NULL, NULL);
+namespace mpi
+{
+    Mat process(const Mat& image, const int kernal_size, const int world_size, const int world_rank, const int collector, const bool waitFlag) {
+        auto start_time = chrono::high_resolution_clock::now();
+        Mat outputImage = MPILowPassFilter(image, kernal_size, world_size, world_rank, collector);
 
-    // Set OPENCV LOG level to ERROR
-    utils::logging::setLogLevel(utils::logging::LogLevel::LOG_LEVEL_ERROR);
+        if (world_rank == collector) {
+            auto end_time = chrono::high_resolution_clock::now();
+            auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+            printf("MPI Elapsed time: %lld milliseconds\n", elapsed_time.count());
+            fflush(stdout);
 
-    int collector = 0; // The processor that will send the message
+            imshow("Original image", image);
+            imshow("MPI Output image", outputImage);
+            imwrite("mpiImage.png", outputImage);
 
-    // Get the number of processes
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-    // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-    
-    int kernal_size = 3; // default value
-
-    if (world_rank == collector) {
-
-        do {
-            cout << "Enter the kernel size: ";
-            cin >> kernal_size;
-
-            if (kernal_size % 2 == 0 || kernal_size < 0) {
-                cout << "The kernel size must be a positive odd number" << endl;
+            if (waitFlag) {
+                waitKey(0);
             }
-        } while (kernal_size % 2 == 0 || kernal_size < 0);
-    }
-    // Broadcast the kernel size to all processes
-    MPI_Bcast(&kernal_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    //Mat image = imread("untitled.png", IMREAD_COLOR);
-    Mat image = imread("untitled.png", IMREAD_GRAYSCALE);
-    if (image.empty()) {
-        cout << "Could not read the image" << endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-        return 1;
+        }
+        return outputImage;
     }
 
-    auto start_time = chrono::high_resolution_clock::now();
-
-    Mat outputImage = MPILowPassFilter(image, kernal_size, world_size, world_rank, collector);
-    auto end_time = chrono::high_resolution_clock::now();
-    auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-
-    if (world_rank == collector) {
-        printf("Elapsed time: %lld milliseconds", elapsed_time.count());
-        fflush(stdout);
-        imshow("Original image", image);
-        imshow("New image", outputImage);
-        imwrite("mpiImage.png", outputImage);
-
-        waitKey(0);
+    Mat process(const Mat& image, const int kernal_size, const int world_size, const int world_rank, const int collector) {
+        return process(image, kernal_size, world_size, world_rank, collector, true);
     }
-
-    // Finalize the MPI environment.
-    MPI_Finalize();
-    return 0;
 }

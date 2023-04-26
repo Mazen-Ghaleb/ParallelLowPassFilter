@@ -149,9 +149,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="MPI.cpp" />
-    <ClCompile Include="openMP.cpp" />
-    <ClCompile Include="Sequential.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="LPF_MPI.cpp" />
+    <ClCompile Include="LPF_OpenMP.cpp" />
+    <ClCompile Include="LPF_Sequential.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="LPF_OpenMP.h" />
+    <ClInclude Include="LPF_MPI.h" />
+    <ClInclude Include="LPF_Sequential.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

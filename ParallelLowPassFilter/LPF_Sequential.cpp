@@ -6,14 +6,13 @@
 #include <opencv2/imgcodecs/imgcodecs.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/utils/logger.hpp>
-
-#include <omp.h>
+#include <chrono>
 
 using namespace cv;
 using namespace std;
 
-Mat openMPLowPassFilter(const Mat& inputImage, int kernelSize) {
-    // Define the filter kernel
+Mat seqLowPassFilter(const Mat& inputImage, const int kernelSize)
+{
     float filter_value = (1 / (float)(kernelSize * kernelSize));
 
     // Perform zero padding on the input image
@@ -25,7 +24,6 @@ Mat openMPLowPassFilter(const Mat& inputImage, int kernelSize) {
     Mat outputImage(inputImage.size(), inputImage.type());
 
     // Perform convolution on the padded image using the filter kernel
-#pragma omp parallel for collapse(2)
     for (int i = paddingSize; i < paddedImage.rows - paddingSize; i++) {
         for (int j = paddingSize; j < paddedImage.cols - paddingSize; j++) {
             float sum = 0.0;
@@ -42,41 +40,28 @@ Mat openMPLowPassFilter(const Mat& inputImage, int kernelSize) {
     return outputImage;
 }
 
-int main(int argc, char** argv) {
-    // Set OPENCV LOG level to ERROR
-    utils::logging::setLogLevel(utils::logging::LogLevel::LOG_LEVEL_ERROR);
+namespace sequential
+{
+    Mat process(const Mat& image, const int kernal_size, const bool waitFlag) {
+        auto start_time = chrono::high_resolution_clock::now();
+        Mat outputImage = seqLowPassFilter(image, kernal_size);
+        auto end_time = chrono::high_resolution_clock::now();
+        auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+        printf("Sequential Elapsed time: %lld milliseconds\n", elapsed_time.count());
+        fflush(stdout);
 
-    int kernal_size;
+        imshow("Original image", image);
+        imshow("Sequential Output image", outputImage);
+        imwrite("seqImage.png", outputImage);
 
-    do {
-        cout << "Enter the kernel size: ";
-        cin >> kernal_size;
-
-        if (kernal_size % 2 == 0 || kernal_size < 0) {
-            cout << "The kernel size must be a positive odd number" << endl;
+        if (waitFlag) {
+            waitKey(0);
         }
-    } while (kernal_size % 2 == 0 || kernal_size < 0);
 
-    auto start_time = chrono::high_resolution_clock::now();
-
-    //Mat image = imread("untitled.png", IMREAD_COLOR);
-    Mat image = imread("untitled.png", IMREAD_GRAYSCALE);
-    if (image.empty()) {
-        cout << "Could not read the image" << endl;
-        return 1;
+        return outputImage;
     }
 
-    Mat outputImage = openMPLowPassFilter(image, kernal_size);
-    imshow("Original image", image);
-    imshow("New image", outputImage);
-    imwrite("openMPImage.png", outputImage);
-
-    auto end_time = chrono::high_resolution_clock::now();
-    auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-
-    printf("Elapsed time: %lld milliseconds", elapsed_time.count());
-
-    waitKey(0);
-
-    return 0;
+    Mat process(const Mat& image, const int kernal_size) {
+        return process(image, kernal_size, true);
+    }
 }
