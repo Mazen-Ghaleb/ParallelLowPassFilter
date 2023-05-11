@@ -10,16 +10,10 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     copyMakeBorder(inputImage, paddedImage, paddingSize, paddingSize, paddingSize, paddingSize, BORDER_CONSTANT, Scalar(0));
 
     // Calculate the local dimensions and offset for each process
+
     int localHeight = paddedImage.rows / world_size;
     int localWidth = paddedImage.cols;
-    int localOffset = world_rank * localHeight;
-
-    // Allocate memory for the local image block and the output block
-    Mat localImage(localHeight, localWidth, inputImage.type());
-    Mat localOutputImage(localHeight, localWidth, inputImage.type());
-
-    // Scatter the input image to all processes
-    MPI_Scatter(paddedImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, localImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
+    int leftOver = paddedImage.rows % world_size;
 
     int prevRank = world_rank - 1;
     int nextRank = world_rank + 1;
@@ -27,6 +21,42 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     // Perform convolution on the local image block using the filter kernel
     Mat aboveRows = Mat::zeros(paddingSize, localWidth, CV_8UC1);
     Mat belowRows = Mat::zeros(paddingSize, localWidth, CV_8UC1);
+
+    // Scatter the input image to all processes
+    int* sendcounts = new int[world_size];
+    int* displs = new int[world_size];
+
+    for (int i = 0; i < world_size; i++) {
+        sendcounts[i] = localHeight * localWidth;
+        displs[i] = i * localHeight * localWidth;
+
+        if (i < leftOver) {
+            sendcounts[i] += localWidth;
+            displs[i] +=  (i * localWidth);
+        }
+        else {
+            displs[i] += (leftOver * localWidth);
+        }
+    }
+
+    if (world_rank < leftOver) {
+        localHeight += 1;
+    }
+
+    // Allocate memory for the local image block and the output block
+    Mat localImage(localHeight, localWidth, inputImage.type());
+    Mat localOutputImage(localHeight, localWidth, inputImage.type());
+
+    // Debugging print
+    //if (world_rank == 0) {
+    //    for (int i = 0; i < world_size; i++) {
+    //        cout << displs[i] << endl;
+    //    }
+    //}
+    //cout << localImage.size() << endl;
+
+
+    MPI_Scatterv(paddedImage.data, sendcounts, displs, MPI_UNSIGNED_CHAR, localImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
 
     if (world_size > 1) {
         if (prevRank >= 0) {
@@ -70,7 +100,11 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     if (world_rank == collector) {
         outputImage = Mat::zeros(paddedImage.size(), paddedImage.type());
     }
-    MPI_Gather(localOutputImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, outputImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
+
+    MPI_Gatherv(localOutputImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, outputImage.data, sendcounts, displs, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
+
+    delete[] sendcounts;
+    delete[] displs;
 
     // Crop the output image to remove the padding and return it
     if (world_rank == collector) {

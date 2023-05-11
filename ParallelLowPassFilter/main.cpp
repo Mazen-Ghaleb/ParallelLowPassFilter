@@ -31,6 +31,18 @@ void compareImage(const Mat& image1, const Mat& image2, String windowName) { // 
     imshow(windowName, a);
 }
 
+void compareImageMSE(const Mat& image1, const Mat& image2, String windowName) { // Compare two images using Matrices
+    Mat diff;
+
+    absdiff(image1, image2, diff);
+    double mse = mean(diff.mul(diff))[0]; // compute mean squared error
+    if (mse > 0) { // if there is a difference
+        cout <<"At "<< windowName << ", Images are different (MSE = " << mse << ")" << endl;
+    }
+    else {
+        cout << "At " << windowName <<", Images are the same" << endl;
+    }
+}
 
 void process(const Mat& image, const int& kernal_size, const int& world_size, const int& world_rank, const int& collector) {
 
@@ -40,9 +52,9 @@ void process(const Mat& image, const int& kernal_size, const int& world_size, co
         Mat Seq_outputImage =  sequential::process(image, kernal_size, false);
         Mat openMP_outputImage = openmp::process(image, kernal_size, false);
 
-        compareImage(Seq_outputImage, openMP_outputImage, "Seq vs openMP");
-        compareImage(Seq_outputImage, MPI_outputImage, "Seq vs MPI");
-        compareImage(openMP_outputImage, MPI_outputImage, "openMP vs MPI");
+        compareImageMSE(Seq_outputImage, openMP_outputImage, "Seq vs openMP");
+        compareImageMSE(Seq_outputImage, MPI_outputImage, "Seq vs MPI");
+        compareImageMSE(openMP_outputImage, MPI_outputImage, "openMP vs MPI");
 
         waitKey(0);
     }
