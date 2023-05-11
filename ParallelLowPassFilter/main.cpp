@@ -134,6 +134,7 @@ int main(int argc, char** argv) {
                 process(image, kernal_size, world_size, world_rank, collector);
                 break;
             }
+            break;
     default:
         if (world_rank == collector) {
             cout << "The method number must be a number from 1 to 5" << endl;

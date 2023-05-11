@@ -31,15 +31,13 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     if (world_size > 1) {
         if (prevRank >= 0) {
             MPI_Request request;
-            MPI_Isend(localImage.rowRange(0, paddingSize - 1).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, prevRank, 0, MPI_COMM_WORLD, &request);
-
+            MPI_Isend(localImage.rowRange(0, paddingSize).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, prevRank, 0, MPI_COMM_WORLD, &request);
             MPI_Recv(aboveRows.data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, prevRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
         if (nextRank <= world_size - 1) {
             MPI_Request request2;
-            MPI_Isend(localImage.rowRange(localHeight - paddingSize - 1, localHeight - 1).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, &request2);
-
+            MPI_Isend(localImage.rowRange(localHeight - paddingSize, localHeight).data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, &request2);
             MPI_Recv(belowRows.data, paddingSize * localWidth, MPI_UNSIGNED_CHAR, nextRank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
     }
