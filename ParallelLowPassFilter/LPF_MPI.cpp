@@ -51,10 +51,13 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     // Debugging print
     //if (world_rank == 0) {
     //    for (int i = 0; i < world_size; i++) {
-    //        cout << displs[i] << endl;
+    //        printf("%d \n", displs[i]);
+    //        fflush(stdout);
     //    }
     //}
-    //cout << localImage.size() << endl;
+    //printf("Image size: [%d x %d]\n", localImage.rows, localImage.cols);
+    //fflush(stdout);
+
 
     // Scatter the input image to all processes
     MPI_Scatterv(paddedImage.data, sendcounts, displs, MPI_UNSIGNED_CHAR, localImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);

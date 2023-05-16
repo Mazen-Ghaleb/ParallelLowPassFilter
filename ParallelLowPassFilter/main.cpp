@@ -37,11 +37,12 @@ void compareImageMSE(const Mat& image1, const Mat& image2, String windowName) { 
     absdiff(image1, image2, diff);
     double mse = mean(diff.mul(diff))[0]; // compute mean squared error
     if (mse > 0) { // if there is a difference
-        cout <<"At "<< windowName << ", Images are different (MSE = " << mse << ")" << endl;
+        printf("At %s, Images are different (MSE = %lf)\n", windowName.c_str(), mse);
     }
     else {
-        cout << "At " << windowName <<", Images are the same" << endl;
+        printf("At %s, Images are the same\n", windowName.c_str());
     }
+    fflush(stdout);
 }
 
 void process(const Mat& image, const int& kernal_size, const int& world_size, const int& world_rank, const int& collector) {
@@ -61,7 +62,6 @@ void process(const Mat& image, const int& kernal_size, const int& world_size, co
 }
 
 int main(int argc, char** argv) {
-
     // Initialize the MPI environment
     MPI_Init(&argc, &argv);
 
@@ -69,13 +69,13 @@ int main(int argc, char** argv) {
     utils::logging::setLogLevel(utils::logging::LogLevel::LOG_LEVEL_ERROR);
 
     Mat image = imread("untitled.png", IMREAD_GRAYSCALE);
+
     if (image.empty()) {
-        cout << "Could not read the image" << endl;
+        printf("Could not read the image\n");
+        fflush(stdout);
         MPI_Abort(MPI_COMM_WORLD, 1);
         return 1;
     }
-
-    const int collector = 0; // The processor that will send the message
 
     // Get the number of processes
     int world_size;
@@ -85,24 +85,39 @@ int main(int argc, char** argv) {
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
+    const int collector = 0; // The processor that will send the message
+
     int method = 4; // The method that will be used to process the image with default value of 4 (all methods)
     int kernal_size = 3; // The size of the kernel with default value of 3
 
     if (world_rank == collector) {
-        cout << "Remember to press ESC on window to continue" << endl << endl;
+        printf("Remember to press ESC on window to continue\n\n");
+        fflush(stdout);
     }
 
     while (true) {
         if (world_rank == collector) {
         destroyAllWindows();
-        cout << "Enter the number for the method you want to use: " << endl;
-        cout << "1- Sequential" << endl;
-        cout << "2- OpenMP" << endl;
-        cout << "3- MPI" << endl;
-        cout << "4- All" << endl;
-        cout << "5- Terminate" << endl;
-        cout << endl << "Method: ";
-        cin >> method;
+        printf("Enter the number for the method you want to use:\n");
+        printf("1- Sequential\n");
+        printf("2- OpenMP\n");
+        printf("3- MPI\n");
+        printf("4- All\n");
+        printf("5- Terminate\n");
+        printf("\nMethod: ");
+        fflush(stdout);
+
+        // Read method selection from the user
+        int scanfResult = scanf_s("%d", &method);
+
+        // Check if the input was successfully read
+        if (scanfResult == NULL) {
+            printf("Invalid input. Exiting...\n");
+            fflush(stdout);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+            MPI_Finalize();
+            return 1;
+            }
         }
 
         // Broadcast the selected method to all other processes
@@ -118,11 +133,23 @@ int main(int argc, char** argv) {
         case 4:
             if (world_rank == collector) {
                 do {
-                    cout << "Enter the kernel size: ";
-                    cin >> kernal_size;
+                    printf("Enter the kernel size: ");
+                    fflush(stdout);
+                    // Read method selection from the user
+                    int scanfResult = scanf_s("%d", &kernal_size);
+
+                    // Check if the input was successfully read
+                    if (scanfResult == NULL) {
+                        printf("Invalid input. Exiting...\n");
+                        fflush(stdout);
+                        MPI_Abort(MPI_COMM_WORLD, 1);
+                        MPI_Finalize();
+                        return 1;
+                    }
 
                     if (kernal_size % 2 == 0 || kernal_size < 0) {
-                        cout << "The kernel size must be a positive odd number" << endl;
+                        printf("The kernel size must be a positive odd number\n");
+                        fflush(stdout);
                     }
                 } while (kernal_size % 2 == 0 || kernal_size < 0);
             }
@@ -149,17 +176,19 @@ int main(int argc, char** argv) {
             break;
     default:
         if (world_rank == collector) {
-            cout << "The method number must be a number from 1 to 5" << endl;
+            printf("The method number must be a number from 1 to 5\n");
+            fflush(stdout);
         }
 		break;
         }
 
         if (world_rank == collector) {
-            cout << endl;
+            printf("\n");
+            fflush(stdout);
         }
     }
     exit_loop:;
-    
+ 
     // Finalize the MPI environment.
     MPI_Finalize();
     return 0;
