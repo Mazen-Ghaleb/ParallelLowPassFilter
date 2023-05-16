@@ -10,7 +10,6 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     copyMakeBorder(inputImage, paddedImage, paddingSize, paddingSize, paddingSize, paddingSize, BORDER_CONSTANT, Scalar(0));
 
     // Calculate the local dimensions and offset for each process
-
     int localHeight = paddedImage.rows / world_size;
     int localWidth = paddedImage.cols;
     int leftOver = paddedImage.rows % world_size;
@@ -26,6 +25,7 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     int* sendcounts = new int[world_size];
     int* displs = new int[world_size];
 
+    // Calculate the sendcounts and displacements
     for (int i = 0; i < world_size; i++) {
         sendcounts[i] = localHeight * localWidth;
         displs[i] = i * localHeight * localWidth;
@@ -39,6 +39,7 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
         }
     }
 
+    // Fix the local height according to leftover distribution
     if (world_rank < leftOver) {
         localHeight += 1;
     }
@@ -55,9 +56,10 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
     //}
     //cout << localImage.size() << endl;
 
-
+    // Scatter the input image to all processes
     MPI_Scatterv(paddedImage.data, sendcounts, displs, MPI_UNSIGNED_CHAR, localImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
 
+    // Send the top and bottom rows to the previous and next processes
     if (world_size > 1) {
         if (prevRank >= 0) {
             MPI_Request request;
@@ -72,6 +74,7 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
         }
     }
 
+    // Perform convolution on the local image block using the filter kernel
     for (int i = 0; i < localHeight; i++) {
         for (int j = paddingSize; j < localWidth - paddingSize; j++) {
             float sum = 0.0;
@@ -95,14 +98,16 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
         }
     }
 
-    // Gather the filtered blocks from all processes to the root process
+    // Initialize the output image on the root process
     Mat outputImage;
     if (world_rank == collector) {
         outputImage = Mat::zeros(paddedImage.size(), paddedImage.type());
     }
 
+    // Gather the filtered blocks from all processes to the root process
     MPI_Gatherv(localOutputImage.data, localHeight * localWidth, MPI_UNSIGNED_CHAR, outputImage.data, sendcounts, displs, MPI_UNSIGNED_CHAR, collector, MPI_COMM_WORLD);
 
+    // Free the memory
     delete[] sendcounts;
     delete[] displs;
 
@@ -119,27 +124,36 @@ Mat MPILowPassFilter(const Mat& inputImage, const int kernelSize, const int worl
 namespace mpi
 {
     Mat process(const Mat& image, const int kernal_size, const int world_size, const int world_rank, const int collector, const bool waitFlag) {
+        // Start the timer
         auto start_time = chrono::high_resolution_clock::now();
+
+        // Perform convolution on the input image using the filter kernel
         Mat outputImage = MPILowPassFilter(image, kernal_size, world_size, world_rank, collector);
 
         if (world_rank == collector) {
+            // Print the elapsed time in milliseconds
             auto end_time = chrono::high_resolution_clock::now();
             auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
             printf("MPI Elapsed time: %lld milliseconds\n", elapsed_time.count());
             fflush(stdout);
 
+            // Display the input and output images
             imshow("Original image", image);
             imshow("MPI Output image", outputImage);
             imwrite("mpiImage.png", outputImage);
 
+            // Wait for the user to press any key
             if (waitFlag) {
                 waitKey(0);
             }
         }
+
+        // Return the output image
         return outputImage;
     }
 
     Mat process(const Mat& image, const int kernal_size, const int world_size, const int world_rank, const int collector) {
+        // Perform convolution on the input image
         return process(image, kernal_size, world_size, world_rank, collector, true);
     }
 }

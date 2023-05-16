@@ -50,7 +50,7 @@ void process(const Mat& image, const int& kernal_size, const int& world_size, co
 
     if (world_rank == collector) {
         Mat Seq_outputImage =  sequential::process(image, kernal_size, false);
-        Mat openMP_outputImage = openmp::process(image, kernal_size, false);
+        Mat openMP_outputImage = openmp::process(image, kernal_size, world_size, false);
 
         compareImageMSE(Seq_outputImage, openMP_outputImage, "Seq vs openMP");
         compareImageMSE(Seq_outputImage, MPI_outputImage, "Seq vs MPI");
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
                 break;
             case 2:
                 if (world_rank == collector) {
-                    openmp::process(image, kernal_size);
+                    openmp::process(image, kernal_size, world_size);
                 }
                 break;
             case 3:

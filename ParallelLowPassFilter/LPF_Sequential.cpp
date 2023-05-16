@@ -43,25 +43,36 @@ Mat seqLowPassFilter(const Mat& inputImage, const int kernelSize)
 namespace sequential
 {
     Mat process(const Mat& image, const int kernal_size, const bool waitFlag) {
+        // Start the timer
         auto start_time = chrono::high_resolution_clock::now();
+
+        // Perform convolution on the input image using the filter kernel
         Mat outputImage = seqLowPassFilter(image, kernal_size);
+
+        // Stop the timer
         auto end_time = chrono::high_resolution_clock::now();
+
+        // Print the elapsed time in milliseconds
         auto elapsed_time = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
         printf("Sequential Elapsed time: %lld milliseconds\n", elapsed_time.count());
         fflush(stdout);
 
+        // Display the input and output images
         imshow("Original image", image);
         imshow("Sequential Output image", outputImage);
         imwrite("seqImage.png", outputImage);
 
+        // Wait for the user to press any key
         if (waitFlag) {
             waitKey(0);
         }
 
+        // Return the output image
         return outputImage;
     }
 
     Mat process(const Mat& image, const int kernal_size) {
+        // Perform convolution on the input image
         return process(image, kernal_size, true);
     }
 }

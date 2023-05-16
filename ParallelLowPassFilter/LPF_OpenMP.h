@@ -13,10 +13,10 @@
 using namespace cv;
 using namespace std;
 
-Mat openMPLowPassFilter(const Mat& inputImage, const int kernelSize);
+Mat openMPLowPassFilter(const Mat& inputImage, int kernelSize, const int num_of_threads);
 
 namespace openmp
 {
-	Mat process(const Mat& image, const int kernal_size, const bool waitFlag);
-	Mat process(const Mat& image, const int kernal_size);
+	Mat process(const Mat& image, const int kernal_size, const int num_of_threads, const bool waitFlag);
+	Mat process(const Mat& image, const int kernal_size, const int num_of_threads);
 }
